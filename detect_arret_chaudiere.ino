@@ -1,44 +1,37 @@
 #include "Wire.h"
 #include <EEPROM.h>
 #include <Deuligne.h>
-
 #include "temp_sensor.h"
 #include "utils.h"
 #include "lcd.h"
+#include <Metro.h>
 
-#define ADDRESS 1
-
-enum running_mode {
-  up,
-  idle
-};
-running_mode GO_IDLE = idle;
-running_mode GO_UP = up;
-
+#define ADDRESS 1 //adresse d'écriture en ROM de la valeur de consigne température
+#define IDLE 8000 // durée en ms avant mise en veille écran
+#define REFRESH 1000 // durée en ms avant mise en veille écran
 int value = 0;
 
-int consigne = 0;
-int consigne_init = 0;
-int button = -1;
-int sleep = millis();
-int mode = 1;
+float temp = 0; //température lue via adc
+int consigne = 0; //consigne de température
+int button = -1; // boutton joystick lcd deuligne
+int mode = 1; // mode 0 = écran en veille, 1 = hors veille 
 Deuligne lcd;
+Metro go_idle = Metro(IDLE); //timer gestion mode veille
+Metro check_temp = Metro(REFRESH); //timer gestion mode veille
+
 void setup()
 {
-	Serial.begin(19200); 
 	lcd.init();
 	lcd.setCursor(0, 0);
-	lcd.print("init");  
-	delay(700);
-	
-//	EEPROM.write(ADDRESS, 15);
+	lcd.print("init");
+	Serial.begin(19200); 
+	//EEPROM.write(ADDRESS, 15);
 	consigne = EEPROM.read(ADDRESS);
-	char buffer[16];
-	sprintf(buffer, "consigne = %d", consigne);
-	lcd.setCursor(0, 1);
-	lcd.print(buffer);  
-	delay(2000);
+	delay(500);
 	lcd.clear();
+	go_idle.reset();
+	check_temp.reset();
+
 //	while (1);
   }
 
@@ -48,7 +41,6 @@ void save_consigne (){
 		EEPROM.write(ADDRESS, consigne);
 	}
 }
-
 void print_custom (char*){
 	lcd.setCursor(0, 0);
 	lcd.print("custom");  
@@ -62,26 +54,29 @@ void print_consigne (int consigne){
 	lcd.setCursor(0, 1);
 	lcd.print(consigne);  
 }
-
-void print_temp (float temp){
+void print (){
+	char buffer1[16];
+	sprintf(buffer1, "température %d", Arrondi(temp));
 	lcd.setCursor(0, 0);
-	lcd.print("température");   
+	lcd.print(buffer1);  
+
+	char buffer2[16];
 	lcd.setCursor(0, 1);
-	lcd.print(Arrondi(temp));  
-//	Serial.print("temp: ");
-//	Serial.println(temp);
+	sprintf(buffer2, "consigne %d", consigne);
+	lcd.print(buffer2);  
+
 }
 
 void print_and_update_consigne(int value){
 	consigne = consigne + value;
-	print_consigne(consigne);
+	print ();
 	delay(300);	
 }
 
 void manage_button() {
 	unsigned long time;
 	time = millis();
-	print_consigne(consigne);
+	print();
 	delay(1000);
 	while(millis() < time + 4000) {		
 		button=lcd.get_key();
@@ -99,41 +94,50 @@ void manage_button() {
 	save_consigne ();
 	lcd.clear();
 	button = -1;
-	sleep = millis();
+	go_idle.reset();
 }
 
 void switch_mode(int value){
 	mode = value;
-	if(mode == up) {lcd.display();}
-	if(mode == idle) {lcd.noDisplay();}
+	if(mode == 1) {lcd.backLight(1);}
+	if(mode == 0) {lcd.backLight(0);}
 }
 
 void check_consigne(float temp, int consigne){
 	if(temp < consigne){
+		if(mode == 0) {switch_mode(1);}
+		go_idle.reset();
 		lcd.clear();
+		char buffer1[16];
+		sprintf(buffer1, "température %d", Arrondi(temp));
 		lcd.setCursor(0, 0);
-		lcd.print("ALERT");  
-		lcd.setCursor(0, 0);
-		lcd.print("ALERT !!!");
-		delay(1000);
+		lcd.print(buffer1);  
+		lcd.setCursor(0, 1);
+		lcd.print("! ALERT ! ");  
+		delay(2000);
 	}
 }
 
 void loop() {
 	
-	float temp = temp_as_c(); // get temp value
-	print_temp (temp);
-	delay(1000);
 	check_consigne(temp, consigne);
 
+	if (check_temp.check() == 1){
+		temp = temp_as_c(); // get temp value
+		print ();
+		check_temp.reset();
+	}
+	
 	button=lcd.get_key();
 	delay(100); // for debounce
-	if(button > -1 && mode == up) {
+	if(button > -1 && mode == 0) {
+		go_idle.reset();
+		switch_mode(1);
+		button = -1;
+	}
+	if(button > -1 && mode == 1) {
 		manage_button();
 	}
-	if(button > -1 && mode == idle) {
-		sleep = millis();
-		switch_mode(1);
-	}
-	if(millis() > sleep + 6000){switch_mode(0);}	
+	if ((go_idle.check() == 1) && mode == 1){switch_mode(0);}
+//	if((millis() > (sleep + IDLE)) && mode == 1){switch_mode(0);}	
 }
