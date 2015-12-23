@@ -7,8 +7,11 @@
 #include <Metro.h>
 
 #define ADDRESS 1 //adresse d'écriture en ROM de la valeur de consigne température
-#define IDLE 8000 // durée en ms avant mise en veille écran
+#define IDLE 80000 // durée en ms avant mise en veille écran
 #define REFRESH 1000 // durée en ms avant mise en veille écran
+#define BTN_PLUS 12 // pin digital 11 input button plus : need to set internal pullup resistor
+#define BTN_MOINS 11 // pin digital 11 input button plus : need to set internal pullup resistor
+
 int value = 0;
 
 float temp = 0; //température lue via adc
@@ -18,9 +21,17 @@ int mode = 1; // mode 0 = écran en veille, 1 = hors veille
 Deuligne lcd;
 Metro go_idle = Metro(IDLE); //timer gestion mode veille
 Metro check_temp = Metro(REFRESH); //timer gestion mode veille
+int btnp;
+int btnm;
+
+
 
 void setup()
 {
+	pinMode(BTN_PLUS, INPUT);           // set BTN_PLUS to input
+	digitalWrite(BTN_PLUS, HIGH);       // turn on pullup resistors	on BTN_PLUS
+	pinMode(BTN_MOINS, INPUT);           // set BTN_MOINS to input
+	digitalWrite(BTN_MOINS, HIGH);       // turn on pullup resistors	on BTN_MOINS
 	lcd.init();
 	lcd.setCursor(0, 0);
 	lcd.print("init");
@@ -78,6 +89,29 @@ void manage_button() {
 	time = millis();
 	print();
 	delay(1000);
+	while(millis() < time + 4000) {
+		btnp = digitalRead(BTN_PLUS);
+		btnm = digitalRead(BTN_MOINS);
+		delay(100); // for debounce
+		if(btnp == LOW || btnm == LOW){
+			value = 0;
+			if(btnm == LOW) {value = -1; }
+			if(btnp == LOW) {value = 1;}
+		time = millis();
+		print_and_update_consigne(value);
+		}
+	}
+	save_consigne ();
+	lcd.clear();
+	btnp = HIGH;
+	btnm = HIGH;
+	go_idle.reset();
+}
+void manage_button_old() {
+	unsigned long time;
+	time = millis();
+	print();
+	delay(1000);
 	while(millis() < time + 4000) {		
 		button=lcd.get_key();
 		delay(100); // for debounce
@@ -114,6 +148,7 @@ void check_consigne(float temp, int consigne){
 		lcd.print(buffer1);  
 		lcd.setCursor(0, 1);
 		lcd.print("! ALERT ! ");  
+		tone(10, 440, 1000);
 		delay(2000);
 	}
 }
@@ -127,15 +162,17 @@ void loop() {
 		print ();
 		check_temp.reset();
 	}
-	
+	btnp = digitalRead(BTN_PLUS);
+	btnm = digitalRead(BTN_MOINS);
 	button=lcd.get_key();
 	delay(100); // for debounce
-	if(button > -1 && mode == 0) {
+	if((btnp == LOW || btnm == LOW) && mode == 0) {
 		go_idle.reset();
 		switch_mode(1);
-		button = -1;
+		btnp = HIGH;
+		btnm = HIGH;
 	}
-	if(button > -1 && mode == 1) {
+	if((btnp == LOW || btnm == LOW) && mode == 1) {
 		manage_button();
 	}
 	if ((go_idle.check() == 1) && mode == 1){switch_mode(0);}

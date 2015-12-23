@@ -1,6 +1,6 @@
 #include "Arduino.h"
 
-#define THERMOMETER 1
+#define THERMOMETER 2
 
 const float B = 2700;
 const float R0 = 50000;
