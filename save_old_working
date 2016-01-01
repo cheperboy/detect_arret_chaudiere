@@ -95,10 +95,9 @@ void manage_button() {
 		delay(100); // for debounce
 		if(btnp == LOW || btnm == LOW){
 			value_update_consigne = 0;
-			if(btnm == LOW) {value_update_consigne = -5; }
-			if(btnp == LOW) {value_update_consigne = 5;}
+			if(btnm == LOW) {value_update_consigne = -1; }
+			if(btnp == LOW) {value_update_consigne = 1;}
 		time = millis();
-		lcd.clear();
 		print_and_update_consigne(value_update_consigne);
 		}
 	}

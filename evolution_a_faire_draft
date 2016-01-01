@@ -12,6 +12,7 @@
 // TEMPOS
 #define IDLE 80000 // durée en ms avant mise en veille écran
 #define REFRESH 1000 // durée en ms avant mise en veille écran
+#define DUREE_ALERT 1*60*1000 // durée en ms entre deux bip
 
 // PIN WIRING
 #define BTN_PLUS 12 // pin digital 11 input button plus : need to set internal pullup resistor
@@ -30,6 +31,7 @@ int btnm;
 Deuligne lcd;
 Metro go_idle = Metro(IDLE); //timer gestion mode veille
 Metro check_temp = Metro(REFRESH); //timer gestion mode veille
+Metro duree_alert = Metro(DUREE_ALERT); //timer gestion mode veille
 
 
 
@@ -95,10 +97,9 @@ void manage_button() {
 		delay(100); // for debounce
 		if(btnp == LOW || btnm == LOW){
 			value_update_consigne = 0;
-			if(btnm == LOW) {value_update_consigne = -5; }
-			if(btnp == LOW) {value_update_consigne = 5;}
+			if(btnm == LOW) {value_update_consigne = -1; }
+			if(btnp == LOW) {value_update_consigne = 1;}
 		time = millis();
-		lcd.clear();
 		print_and_update_consigne(value_update_consigne);
 		}
 	}
@@ -127,7 +128,7 @@ void manage_alert(float temp, int consigne){
 	delay(2000);
 }
 /*
-manage alert_before_ack
+void manage_alert_before_ack()
 	check_temp()
 	buzzer toutes les 20 minutes
 	tant que (temp < consigne)
@@ -147,6 +148,11 @@ manage_alert_after_ack
 
 	
 */
+void read_buttons(){
+	btnp = digitalRead(BTN_PLUS);
+	btnm = digitalRead(BTN_MOINS);
+	delay(100); // for debounce	
+}
 void loop() {
 	if (check_temp.check() == 1){
 		temp = temp_as_c(); // get temp
@@ -156,9 +162,9 @@ void loop() {
 	if(temp < consigne){
 		manage_alert(temp, consigne);
 	}
-	btnp = digitalRead(BTN_PLUS);
-	btnm = digitalRead(BTN_MOINS);
-	delay(100); // for debounce
+	
+	read_buttons();
+	
 	if((btnp == LOW || btnm == LOW) && mode == 0) {
 		go_idle.reset();
 		switch_mode(1);
@@ -168,6 +174,5 @@ void loop() {
 	if((btnp == LOW || btnm == LOW) && mode == 1) {
 		manage_button();
 	}
-	if ((go_idle.check() == 1) && mode == 1){switch_mode(0);}
-	
+	if ((go_idle.check() == 1) && mode == 1){switch_mode(0);}	
 }
