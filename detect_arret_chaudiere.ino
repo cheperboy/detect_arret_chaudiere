@@ -5,6 +5,8 @@
 #include "utils.h"
 #include "lcd.h"
 #include <Metro.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 // ROM ADDRESS
 #define ADDRESS 1 //adresse d'écriture en ROM de la valeur de consigne température
@@ -17,28 +19,33 @@
 #define BTN_PLUS 12 // pin digital 11 input button plus : need to set internal pullup resistor
 #define BTN_MOINS 11 // pin digital 11 input button plus : need to set internal pullup resistor
 #define BUZZER 10 // pin digital 10 Buzzer tone
+#define ONE_WIRE_BUS 2 // One wire DS18B20 on pin2
 
+// OTHER CONSTANTS
+
+#define TEMP_TAB_LENGTH
 // GLOBAL VARIABLES
 int value_update_consigne = 0; // relative value to add to consigne
 float temp = 0; // température read from adc
 int consigne = 0; // consigne température
 int mode = 1; // mode 0 = écran en veille, 1 = hors veille 
-int btnp;
-int btnm;
+int btnp; //bouton plus
+int btnm; //bouton moins
 
 // Library instances
 Deuligne lcd;
 Metro go_idle = Metro(IDLE); //timer gestion mode veille
 Metro check_temp = Metro(REFRESH); //timer gestion mode veille
-
-
+OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
+DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Temperature.
 
 void setup()
 {
 	pinMode(BTN_PLUS, INPUT);           // set BTN_PLUS to input
 	digitalWrite(BTN_PLUS, HIGH);       // turn on pullup resistors	on BTN_PLUS
 	pinMode(BTN_MOINS, INPUT);           // set BTN_MOINS to input
-	digitalWrite(BTN_MOINS, HIGH);       // turn on pullup resistors	on BTN_MOINS
+	digitalWrite(BTN_MOINS, HIGH);       // turn on pullup resistors on BTN_MOINS
+	sensors.begin(); // Start up the library OneWire DS18B20
 	lcd.init();
 	lcd.setCursor(0, 0);
 	lcd.print("init");
@@ -52,6 +59,12 @@ void setup()
 	check_temp.reset();
 //	while (1);
   }
+
+int getTempDallas (){
+  //Serial.print(" Requesting temperatures...");
+  sensors.requestTemperatures(); // Send the command to get temperatures
+  return (Arrondi(sensors.getTempCByIndex(0)));
+}
 
 void save_consigne (){
 	int mem = EEPROM.read(ADDRESS);
@@ -68,6 +81,7 @@ void print_consigne (int consigne){
 	lcd.print(consigne);  
 }
 void print (){
+	lcd.clear();
 	char buffer1[16];
 	sprintf(buffer1, "température %d", Arrondi(temp));
 	lcd.setCursor(0, 0);
@@ -126,30 +140,12 @@ void manage_alert(float temp, int consigne){
 	tone(BUZZER, 440, 1000);
 	delay(2000);
 }
-/*
-manage alert_before_ack
-	check_temp()
-	buzzer toutes les 20 minutes
-	tant que (temp < consigne)
-		check buttons
-		if button pressed // = user ACKnoledgement
-			SET tempo_before_alert
-			goto manage_alert_after_ack
-	si temp>consigne goto loop
 
 
-manage_alert_after_ack
-	//pas de buzzer avant fin de la tempo_before_alert
-	check_temp()
-	tant que (temp < consigne)
-	SI tempo_before_alert écoulée GOTO alert_before_ack
-	
-
-	
-*/
 void loop() {
 	if (check_temp.check() == 1){
-		temp = temp_as_c(); // get temp
+		//temp = temp_as_c(); // get temp
+		temp = getTempDallas(); // get temp
 		print ();
 		check_temp.reset();
 	}
